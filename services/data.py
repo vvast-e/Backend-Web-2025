@@ -40,7 +40,7 @@ ORDERS_DATA = {
         'id': 1,
         'items': [
             {'service_id': 1, 'quantity': 1, 'sort_order': 1, 'is_main': True},
-            {'service_id': 3, 'quantity': 2, 'sort_order': 2, 'is_main': False},
+            {'service_id': 3, 'quantity': 1, 'sort_order': 2, 'is_main': False},
         ]
     }
 }

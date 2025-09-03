@@ -26,7 +26,7 @@ def services_list(request):
         'order_id': order_id,
         'cart_count': cart_count,
     }
-    return render(request, 'services/list.html', context)
+    return render(request, 'services/comets_list.html', context)
 
 
 def service_detail(request, service_id):
@@ -49,7 +49,7 @@ def service_detail(request, service_id):
         'service': service,
         'order_id': order_id,
     }
-    return render(request, 'services/detail.html', context)
+    return render(request, 'services/comet_detail.html', context)
 
 
 def order_detail(request, order_id):
@@ -83,4 +83,4 @@ def order_detail(request, order_id):
         'items': items,
         'cart_count': cart_count,
     }
-    return render(request, 'orders/detail.html', context)
+    return render(request, 'orders/software_request.html', context)

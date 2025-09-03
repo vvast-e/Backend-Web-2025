@@ -1,7 +1,6 @@
-{% extends 'base/layout.html' %}
+{% extends 'base/comet_layout.html' %}
 
 {% block content %}
-<!-- Response data: order_id={{ order_id }}, cart_count={{ cart_count }} -->
 <section class="toolbar" data-order-id="{{ order_id }}" data-cart-count="{{ cart_count }}">
     <form method="get" action="{% url 'services:list' %}" class="search-form">
         <input type="hidden" name="order_id" value="{{ order_id }}">
@@ -15,23 +14,21 @@
     </a>
 </section>
 
-
 <section class="grid">
-    {% for service in services %}
-    <!-- Service: id={{ service.id }}, minio_url={{ service.image_url }} -->
-    <a class="card" href="{% url 'services:detail' service.id %}?order_id={{ order_id }}"
-        data-service-id="{{ service.id }}" data-minio-url="{{ service.image_url }}">
-        <img src="{{ service.image_url }}" alt="{{ service.name }}">
+    {% for airplane in services %}
+    <a class="card" href="{% url 'services:detail' airplane.id %}?order_id={{ order_id }}"
+        data-service-id="{{ airplane.id }}" data-minio-url="{{ airplane.image_url }}">
+        <img src="{{ airplane.image_url }}" alt="{{ airplane.name }}">
         <div class="card-body">
-            <h3 class="card-title">{{ service.name }}</h3>
+            <h3 class="card-title">{{ airplane.name }}</h3>
             <div class="card-meta">
-                <span class="price">{{ service.price }} ₽</span>
-                <span class="date">{{ service.event_date }}</span>
+                <span class="price">{{ airplane.price }} ₽</span>
+                <span class="date">{{ airplane.event_date }}</span>
             </div>
         </div>
     </a>
     {% empty %}
-    <p class="no-results">Услуги не найдены</p>
+    <p class="no-results">Данных нет</p>
     {% endfor %}
 </section>
 {% endblock %}

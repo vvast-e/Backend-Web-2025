@@ -1,10 +1,9 @@
-{% extends 'base/layout.html' %}
+{% extends 'base/comet_layout.html' %}
 
 {% block content %}
 <section class="order">
     <h1>Заявка #{{ order_id }}</h1>
     <div class="summary">Всего позиций: <span class="badge badge-primary">{{ cart_count }}</span></div>
-
 
     {% for item in items %}
     <div class="order-item">
@@ -17,13 +16,18 @@
                 кол-во: {{ item.quantity }}, порядок: {{ item.sort_order }}, главный: {% if item.is_main%}да{%else%}нет{% endif %}
             </span>
         </div>
+        <div class="order-item-date">
+            <label for="comet-date-{{ forloop.counter }}">Дата расчёта расстояния</label>
+            <input id="comet-date-{{ forloop.counter }}" name="comet_date_{{ item.service.id }}" type="date"
+                value="{{ item.service.event_date }}">
+        </div>
     </div>
     {% empty %}
     <p class="no-items">Заявка пуста</p>
     {% endfor %}
 
     <div class="nav-links">
-        <a class="btn" href="{% url 'services:list' %}?order_id={{ order_id }}">← к услугам</a>
+        <a class="btn" href="{% url 'services:list' %}?order_id={{ order_id }}">← к списку</a>
     </div>
 </section>
 {% endblock %}
