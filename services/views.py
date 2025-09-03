@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import Http404
-from .data import SERVICES_DATA, ORDERS_DATA, get_minio_url
+from .data import SERVICES_DATA, ORDERS_DATA, get_minio_url, calculate_heliocentric_distance_au
+from datetime import date
 
 
 def services_list(request):
@@ -68,11 +69,15 @@ def order_detail(request, order_id):
         
         if service:
             service['image_url'] = get_minio_url(service['image_key'])
+            on_date = service['event_date'] if isinstance(service['event_date'], date) else date.fromisoformat(str(service['event_date']))
+            distance_au = calculate_heliocentric_distance_au(service['image_key'], on_date)
             items.append({
                 'service': service,
                 'quantity': item['quantity'],
                 'sort_order': item['sort_order'],
                 'is_main': item['is_main'],
+                'calc_date': on_date,
+                'distance_au': distance_au,
             })
     
     cart_count = sum(item['quantity'] for item in order['items'])

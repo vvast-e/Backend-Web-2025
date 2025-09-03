@@ -12,7 +12,6 @@
         <p class="desc">{{ service.description }}</p>
 
         <div class="nav-links">
-            <a class="btn btn-red" href="{% url 'services:list' %}?order_id={{ order_id }}">← назад</a>
             <a class="btn btn-red" href="{% url 'services:order_detail' order_id %}">к заявке →</a>
         </div>
 

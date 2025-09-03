@@ -305,6 +305,14 @@ body {
     align-items: center;
 }
 
+.order-item-metrics {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    margin-top: 8px;
+    align-items: baseline;
+}
+
 .order-item .name {
     font-weight: 600;
 }
