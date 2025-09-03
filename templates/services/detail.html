@@ -1,0 +1,21 @@
+{% extends 'base/layout.html' %}
+
+{% block content %}
+<article class="detail">
+    <img class="detail-image" src="{{ service.image_url }}" alt="{{ service.name }}">
+    <div class="detail-body">
+        <h1>{{ service.name }}</h1>
+        <div class="detail-meta">
+            <span class="price">{{ service.price }} ₽</span>
+            <span class="date">{{ service.event_date }}</span>
+        </div>
+        <p class="desc">{{ service.description }}</p>
+
+        <div class="nav-links">
+            <a class="btn btn-red" href="{% url 'services:list' %}?order_id={{ order_id }}">← к услугам</a>
+            <a class="btn btn-red" href="{% url 'services:order_detail' order_id %}">к заявке →</a>
+        </div>
+
+    </div>
+</article>
+{% endblock %}

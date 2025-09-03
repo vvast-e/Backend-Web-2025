@@ -1,0 +1,37 @@
+{% extends 'base/layout.html' %}
+
+{% block content %}
+<!-- Response data: order_id={{ order_id }}, cart_count={{ cart_count }} -->
+<section class="toolbar" data-order-id="{{ order_id }}" data-cart-count="{{ cart_count }}">
+    <form method="get" action="{% url 'services:list' %}" class="search-form">
+        <input type="hidden" name="order_id" value="{{ order_id }}">
+        <input type="text" name="q" placeholder="Поиск по наименованию" value="{{ query }}">
+        <button type="submit" class="btn btn-red">Найти</button>
+    </form>
+
+    <a class="cart-card" href="{% url 'services:order_detail' order_id %}">
+        <div class="cart-title">Заявка #{{ order_id }}</div>
+        <div class="cart-count">В корзине: <span class="badge badge-primary">{{ cart_count }}</span></div>
+    </a>
+</section>
+
+
+<section class="grid">
+    {% for service in services %}
+    <!-- Service: id={{ service.id }}, minio_url={{ service.image_url }} -->
+    <a class="card" href="{% url 'services:detail' service.id %}?order_id={{ order_id }}"
+        data-service-id="{{ service.id }}" data-minio-url="{{ service.image_url }}">
+        <img src="{{ service.image_url }}" alt="{{ service.name }}">
+        <div class="card-body">
+            <h3 class="card-title">{{ service.name }}</h3>
+            <div class="card-meta">
+                <span class="price">{{ service.price }} ₽</span>
+                <span class="date">{{ service.event_date }}</span>
+            </div>
+        </div>
+    </a>
+    {% empty %}
+    <p class="no-results">Услуги не найдены</p>
+    {% endfor %}
+</section>
+{% endblock %}

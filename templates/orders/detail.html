@@ -1,0 +1,29 @@
+{% extends 'base/layout.html' %}
+
+{% block content %}
+<section class="order">
+    <h1>Заявка #{{ order_id }}</h1>
+    <div class="summary">Всего позиций: <span class="badge badge-primary">{{ cart_count }}</span></div>
+
+
+    {% for item in items %}
+    <div class="order-item">
+        <img src="{{ item.service.image_url }}" alt="{{ item.service.name }}">
+        <div class="order-item-row">
+            <span class="name">{{ item.service.name }}</span>
+            <span class="price">{{ item.service.price }} ₽</span>
+            <span class="date">{{ item.service.event_date }}</span>
+            <span class="meta">
+                кол-во: {{ item.quantity }}, порядок: {{ item.sort_order }}, главный: {% if item.is_main%}да{%else%}нет{% endif %}
+            </span>
+        </div>
+    </div>
+    {% empty %}
+    <p class="no-items">Заявка пуста</p>
+    {% endfor %}
+
+    <div class="nav-links">
+        <a class="btn" href="{% url 'services:list' %}?order_id={{ order_id }}">← к услугам</a>
+    </div>
+</section>
+{% endblock %}
