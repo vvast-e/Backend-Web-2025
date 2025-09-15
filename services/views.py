@@ -78,6 +78,7 @@ def order_detail(request, order_id):
                 'is_main': item['is_main'],
                 'calc_date': on_date,
                 'distance_au': distance_au,
+                'coords': item.get('coords', None),
             })
     
     cart_count = sum(item['quantity'] for item in order['items'])
@@ -87,5 +88,7 @@ def order_detail(request, order_id):
         'order_id': order_id,
         'items': items,
         'cart_count': cart_count,
+        'astronomer': order.get('astronomer', '—'),
+        'telescope': order.get('telescope', '—'),
     }
     return render(request, 'orders/software_request.html', context)

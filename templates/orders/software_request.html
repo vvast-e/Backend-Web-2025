@@ -3,23 +3,29 @@
 {% block content %}
 <section class="order">
     <h1>Заявка #{{ order_id }}</h1>
-    <div class="summary">Всего позиций: <span class="badge badge-primary">{{ cart_count }}</span></div>
+    <div class="summary">
+        <span>Всего позиций: <span class="badge badge-primary">{{ cart_count }}</span></span>
+    </div>
+    <div class="summary">
+        <span>Астроном: <strong>{{ astronomer }}</strong></span>
+        <span style="margin-left:16px;">Телескоп: <strong>{{ telescope }}</strong></span>
+    </div>
 
     {% for item in items %}
     <div class="order-item">
         <img src="{{ item.service.image_url }}" alt="{{ item.service.name }}">
         <div class="order-item-row">
             <span class="name">{{ item.service.name }}</span>
-            <span class="price">{{ item.service.price }} ₽</span>
-            <span class="date">{{ item.service.event_date }}</span>
             <span class="meta">
-                кол-во: {{ item.quantity }}, порядок: {{ item.sort_order }}, главный: {% if item.is_main%}да{%else%}нет{% endif %}
+                Координаты:<br>
+                x: {{ item.coords.x }}<br>
+                y: {{ item.coords.y }}<br>
+                z: {{ item.coords.z }}
             </span>
-        </div>
-        <div class="order-item-metrics">
-            <span class="calc-date">Дата расчёта: <strong>{{ item.calc_date }}</strong></span>
-            <span class="calc-distance">Расстояние от Солнца: <strong>{{ item.distance_au|floatformat:3 }}
-                    а.е.</strong></span>
+            <span class="meta" style="text-align:right;">
+                Расстояние от Солнца: <strong>{{ item.distance_au|floatformat:3 }} а.е.</strong>
+            </span>
+            <span class="meta" style="text-align:right;">порядок {{ item.sort_order }}</span>
         </div>
     </div>
     {% empty %}
