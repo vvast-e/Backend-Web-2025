@@ -1,0 +1,27 @@
+{{ define "content" }}
+<section class="order">
+  <h1>Заявка #{{ .OrderID }}</h1>
+  <div class="summary">Всего позиций: {{ .CartCount }}</div>
+  <div class="network-hint">GET /orders/{{ .OrderID }} — просмотр состава заявки</div>
+  
+  {{ range .Items }}
+    <div class="order-item">
+      <img src="{{ .Service.ImageURL }}" alt="{{ .Service.Name }}">
+      <div class="order-item-row">
+        <span class="name">{{ .Service.Name }}</span>
+        <span class="price">{{ .Service.Price }} ₽</span>
+        <span class="date">{{ .Service.EventDate }}</span>
+        <span class="meta">кол-во: {{ .Quantity }}, порядок: {{ .SortOrder }}, главный: {{ .IsMain }}</span>
+      </div>
+    </div>
+  {{ end }}
+
+  <div class="nav-links">
+    <a href="/services?orderId={{ .OrderID }}">← к услугам</a>
+  </div>
+</section>
+{{ end }}
+
+
+
+

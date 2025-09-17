@@ -1,0 +1,23 @@
+{{ define "content" }}
+<article class="detail">
+  <img class="detail-image" src="{{ .Service.ImageURL }}" alt="{{ .Service.Name }}">
+  <div class="detail-body">
+    <h1>{{ .Service.Name }}</h1>
+    <div class="detail-meta">
+      <span class="price">{{ .Service.Price }} ₽</span>
+      <span class="date">{{ .Service.EventDate }}</span>
+    </div>
+    <p class="desc">{{ .Service.Description }}</p>
+    <div class="nav-links">
+      <a href="/services?orderId={{ .OrderID }}">← к услугам</a>
+      <a href="/orders/{{ .OrderID }}">к заявке →</a>
+    </div>
+    <div class="network-hint">GET /services/{{ .Service.ID }}?orderId={{ .OrderID }} — просмотр детали услуги, id заявки в query</div>
+  </div>
+  
+</article>
+{{ end }}
+
+
+
+

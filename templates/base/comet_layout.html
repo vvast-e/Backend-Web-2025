@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=6">
+</head>
+
+<body>
+    <header class="app-header">
+        <a class="home-link btn btn-home"
+            href="{% url 'services:comets_list' %}?request_id={{ request_id|default:1 }}">Домой</a>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+        <p>Тема: Расстояние кометы от Солнца по её координатам на небесной сфере</p>
+    </footer>
+</body>
+
+</html>

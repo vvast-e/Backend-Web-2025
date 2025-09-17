@@ -1,0 +1,38 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: lab2-minio
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin12345
+    volumes:
+      - ./minio/data:/data
+    command: server /data --console-address ":9001"
+
+  postgres:
+    image: postgres:16
+    container_name: lab2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cometdb
+      POSTGRES_USER: comet
+      POSTGRES_PASSWORD: cometpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer:latest
+    container_name: lab2-adminer
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
