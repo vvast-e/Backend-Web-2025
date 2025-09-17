@@ -20,7 +20,7 @@ class Comet(models.Model):
     price = models.PositiveIntegerField(verbose_name="Цена расчёта, ₽")
     image_key = models.CharField(max_length=100, verbose_name="Ключ изображения в MinIO", null=True, blank=True)
     is_deleted = models.BooleanField(default=False, verbose_name="Удалена")
-    # Поправочные коэффициенты для расчёта расстояния до Солнца
+
     k_x = models.DecimalField(max_digits=8, decimal_places=4, verbose_name="Коэффициент k_x (а.е.)")
     k_y = models.DecimalField(max_digits=8, decimal_places=4, verbose_name="Коэффициент k_y (а.е.)")
     k_z = models.DecimalField(max_digits=8, decimal_places=4, verbose_name="Коэффициент k_z (а.е.)")
@@ -107,4 +107,3 @@ class RequestComet(models.Model):
 
     def __str__(self):
         return f"{self.comet.name} в заявке #{self.request.id}"
-

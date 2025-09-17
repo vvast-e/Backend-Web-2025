@@ -1,7 +1,7 @@
 from datetime import date
 from math import pi, sin, cos
 
-# Гауссова гравитационная постоянная (астрономические единицы, дни)
+
 GAUSSIAN_K = 0.01720209895
 
 SERVICES_DATA = [
@@ -88,22 +88,22 @@ def get_minio_url(image_key):
     return f"http://localhost:9000/comets/{image_key}"
 
 
-# Орбитальные элементы (упрощённые, эллиптические) для оценки гелиоцентрического расстояния r
-# Формат: a (AU), e, tp (дата прохождения перигелия)
+
+
 ORBITAL_ELEMENTS = {
-    # Комета Галлея — следующий перигелий ожидается 2061-07-28
+
     'halley.jpg': {
         'a': 17.834, 'e': 0.96714, 'tp': date(2061, 7, 28)
     },
-    # Хейла — Боппа — перигелий около 1997-04-01
+
     'hale-bopp.jpg': {
         'a': 186.0, 'e': 0.9951, 'tp': date(1997, 4, 1)
     },
-    # 67P/Чурюмова — Герасименко — перигелий 2021-11-02
+
     '67p.jpg': {
         'a': 3.463, 'e': 0.640, 'tp': date(2021, 11, 2)
     },
-    # C/2020 F3 (NEOWISE) — перигелий 2020-07-03
+
     'neowise.jpg': {
         'a': 266.0, 'e': 0.99921, 'tp': date(2020, 7, 3)
     },
@@ -116,7 +116,7 @@ def _solve_kepler_equation(mean_anomaly: float, eccentricity: float) -> float:
     """
     M = mean_anomaly % (2 * pi)
     e = eccentricity
-    # Начальное приближение
+
     E = M if e < 0.8 else pi
     for _ in range(50):
         f = E - e * sin(E) - M
@@ -146,4 +146,3 @@ def calculate_heliocentric_distance_au(image_key: str, on_date: date) -> float:
     E = _solve_kepler_equation(M, e)
     r = a * (1 - e * cos(E))
     return r
-

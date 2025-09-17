@@ -14,13 +14,13 @@ def services_list(request):
     query = request.GET.get('q', '').strip()
     request_id = int(request.GET.get('request_id', 1))
 
-    # Получаем кометы через ORM (только неудалённые)
+
     comets = Comet.objects.filter(is_deleted=False)
     
     if query:
         comets = comets.filter(name__icontains=query)
 
-    # Получаем текущую заявку пользователя (черновик)
+
     current_request = None
     cart_count = 0
     if request.user.is_authenticated:
@@ -48,7 +48,7 @@ def comet_detail(request, comet_id):
     """MVT: View для детальной информации о комете"""
     request_id = int(request.GET.get('request_id', 1))
     
-    # Получаем комету через ORM
+
     comet = get_object_or_404(Comet, id=comet_id, is_deleted=False)
     
     context = {
@@ -61,42 +61,19 @@ def comet_detail(request, comet_id):
 
 def request_detail(request, request_id):
     """MVT: View для просмотра состава заявки на расчёт"""
-    # Получаем заявку через ORM
+
     calc_request = get_object_or_404(CalculationRequest, id=request_id)
     
-    # Проверяем доступ: удалённые заявки нельзя просматривать
+
     if calc_request.status == 'deleted':
         raise Http404("Заявка удалена")
     
-    # Получаем кометы в заявке через ORM
+
     request_comets = RequestComet.objects.filter(request=calc_request).select_related('comet')
-    
-    # Обработка POST-запроса для обновления координат и расчёта
-    if request.method == 'POST':
-        for req_comet in request_comets:
-            comet_id = req_comet.comet.id
-            try:
-                x = float(request.POST.get(f'coord_x_{comet_id}', req_comet.coords_x))
-                y = float(request.POST.get(f'coord_y_{comet_id}', req_comet.coords_y))
-                z = float(request.POST.get(f'coord_z_{comet_id}', req_comet.coords_z))
-                
-                req_comet.coords_x = x
-                req_comet.coords_y = y
-                req_comet.coords_z = z
-                req_comet.save()
-                
-            except (ValueError, TypeError):
-                messages.error(request, f"Ошибка в координатах для кометы {req_comet.comet.name}")
-        
-        # Обновляем списки астрономов и телескопов (если нужно)
-        # Пока оставляем как есть, данные берутся из JSON полей
-        
-        messages.success(request, "Данные обновлены")
-        return redirect('services:request_detail', request_id=request_id)
     
     items = []
     for req_comet in request_comets:
-        # Расчёт расстояния по формуле с коэффициентами кометы
+
         distance = math.sqrt(
             (float(req_comet.coords_x) - float(req_comet.comet.k_x))**2 + 
             (float(req_comet.coords_y) - float(req_comet.comet.k_y))**2 + 
@@ -118,7 +95,7 @@ def request_detail(request, request_id):
     
     cart_count = request_comets.count()
     
-    # Получаем списки из БД (JSON поля)
+
     astronomers_list = calc_request.astronomers_list or ['Судьи В. Г.', 'Коваленко А. И.', 'Петров С. М.']
     telescopes_list = calc_request.telescopes_list or ['Хаббл', 'Кеплер', 'Джеймс Уэбб']
     
@@ -147,14 +124,14 @@ def add_comet_to_request(request, comet_id):
     
     comet = get_object_or_404(Comet, id=comet_id, is_deleted=False)
     
-    # Получаем или создаём черновик заявки
+
     calc_request, created = CalculationRequest.objects.get_or_create(
         astronomer=request.user,
         status='draft',
         defaults={}
     )
     
-    # Добавляем комету в заявку (через ORM)
+
     request_comet, created = RequestComet.objects.get_or_create(
         request=calc_request,
         comet=comet,
@@ -169,7 +146,7 @@ def add_comet_to_request(request, comet_id):
     )
     
     if not created:
-        # Если комета уже в заявке, увеличиваем количество
+
         request_comet.quantity += 1
         request_comet.save()
         messages.info(request, f"Количество кометы {comet.name} увеличено")
@@ -188,13 +165,13 @@ def delete_request(request, request_id):
         messages.error(request, "Необходима авторизация")
         return redirect('services:comets_list')
     
-    # Проверяем права доступа
+
     calc_request = get_object_or_404(CalculationRequest, id=request_id)
     if calc_request.astronomer != request.user:
         messages.error(request, "Нет прав для удаления этой заявки")
         return redirect('services:comets_list')
     
-    # Логическое удаление через SQL UPDATE (без ORM)
+
     with connection.cursor() as cursor:
         cursor.execute(
             "UPDATE services_calculationrequest SET status = %s WHERE id = %s",
