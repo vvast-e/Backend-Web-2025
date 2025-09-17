@@ -61,8 +61,15 @@ WSGI_APPLICATION = 'cometapp.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'cometdb'),
+        'USER': os.environ.get('POSTGRES_USER', 'comet'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'cometpass'),
+        'HOST': os.environ.get('POSTGRES_HOST', '127.0.0.1'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5433'),
+        'OPTIONS': {
+            'options': '-c client_encoding=UTF8'
+        },
     }
 }
 
