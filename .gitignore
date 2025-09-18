@@ -25,7 +25,6 @@ media/
 .DS_Store
 Thumbs.db
 
-# SQLite (если остался)
 db.sqlite3
 
 # Byte-compiled / optimized / DLL files
