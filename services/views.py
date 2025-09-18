@@ -10,7 +10,6 @@ import math
 
 
 def services_list(request):
-    """MVT: View для списка комет с фильтрацией по наименованию"""
     query = request.GET.get('q', '').strip()
     request_id = int(request.GET.get('request_id', 1))
 
@@ -45,7 +44,6 @@ def services_list(request):
 
 
 def comet_detail(request, comet_id):
-    """MVT: View для детальной информации о комете"""
     request_id = int(request.GET.get('request_id', 1))
     
 
@@ -59,8 +57,7 @@ def comet_detail(request, comet_id):
     return render(request, 'services/comet_detail.html', context)
 
 
-def request_detail(request, request_id):
-    """MVT: View для просмотра состава заявки на расчёт"""
+def trajectory_calculation_detail(request, request_id):
 
     calc_request = get_object_or_404(CalculationRequest, id=request_id)
     
@@ -110,17 +107,16 @@ def request_detail(request, request_id):
         'astronomers_list': astronomers_list,
         'telescopes_list': telescopes_list,
     }
-    return render(request, 'orders/software_request.html', context)
+    return render(request, 'orders/trajectory_calculation.html', context)
 
 
 def add_comet_to_request(request, comet_id):
-    """POST: Добавление кометы в текущую заявку (черновик) через ORM"""
     if request.method != 'POST':
         return HttpResponse("Method not allowed", status=405)
     
     if not request.user.is_authenticated:
         messages.error(request, "Необходима авторизация")
-        return redirect('services:comets_list')
+        return redirect('comets:comets_list')
     
     comet = get_object_or_404(Comet, id=comet_id, is_deleted=False)
     
@@ -153,23 +149,23 @@ def add_comet_to_request(request, comet_id):
     else:
         messages.success(request, f"Комета {comet.name} добавлена в заявку")
     
-    return redirect('services:comets_list')
+    return redirect('comets:comets_list')
 
 
-def delete_request(request, request_id):
+def delete_trajectory_calculation(request, request_id):
     """POST: Логическое удаление заявки через SQL UPDATE"""
     if request.method != 'POST':
         return HttpResponse("Method not allowed", status=405)
     
     if not request.user.is_authenticated:
         messages.error(request, "Необходима авторизация")
-        return redirect('services:comets_list')
+        return redirect('comets:comets_list')
     
 
     calc_request = get_object_or_404(CalculationRequest, id=request_id)
     if calc_request.astronomer != request.user:
         messages.error(request, "Нет прав для удаления этой заявки")
-        return redirect('services:comets_list')
+        return redirect('comets:comets_list')
     
 
     with connection.cursor() as cursor:
@@ -179,4 +175,4 @@ def delete_request(request, request_id):
         )
     
     messages.success(request, f"Заявка #{request_id} удалена")
-    return redirect('services:comets_list')
+    return redirect('comets:comets_list')

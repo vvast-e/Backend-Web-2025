@@ -4,17 +4,14 @@ from django.core.exceptions import ValidationError
 
 
 def default_astronomers_list():
-    """Дефолтный список астрономов для каждой новой заявки."""
     return ["Судьи В. Г.", "Коваленко А. И.", "Петров С. М."]
 
 
 def default_telescopes_list():
-    """Дефолтный список телескопов для каждой новой заявки."""
     return ["Хаббл", "Кеплер", "Джеймс Уэбб"]
 
 
 class Comet(models.Model):
-    """Комета для расчёта гелиоцентрического расстояния"""
     name = models.CharField(max_length=200, verbose_name="Наименование кометы")
     description = models.TextField(verbose_name="Описание расчёта")
     price = models.PositiveIntegerField(verbose_name="Цена расчёта, ₽")
@@ -33,14 +30,12 @@ class Comet(models.Model):
         return self.name
 
     def get_minio_url(self):
-        """Построение URL изображения в MinIO"""
         if self.image_key:
             return f"http://localhost:9002/comets/{self.image_key}"
         return None
 
 
 class CalculationRequest(models.Model):
-    """Заявка на расчёты гелиоцентрического расстояния комет"""
     
     STATUS_CHOICES = [
         ('draft', 'Черновик'),
@@ -75,11 +70,9 @@ class CalculationRequest(models.Model):
         return f"Заявка #{self.id}"
 
     def total_items(self):
-        """Количество комет в заявке"""
         return sum(item.quantity for item in self.request_comets.all())
 
     def clean(self):
-        """Валидация: не более одной заявки в статусе черновик на астронома"""
         if self.status == 'draft':
             existing_draft = CalculationRequest.objects.filter(
                 astronomer=self.astronomer, 
@@ -90,7 +83,7 @@ class CalculationRequest(models.Model):
 
 
 class RequestComet(models.Model):
-    """Связь заявки и кометы с дополнительными полями"""
+
     request = models.ForeignKey(CalculationRequest, on_delete=models.CASCADE, related_name='request_comets')
     comet = models.ForeignKey(Comet, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1, verbose_name="Количество")

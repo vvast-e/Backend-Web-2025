@@ -1,5 +1,3 @@
-
-
 :root {
     --nasa-blue: #000000;
     --nasa-red: #fc3d21;
@@ -161,7 +159,8 @@ body {
 
 
 .card {
-    display: block;
+    display: flex;
+    flex-direction: column;
     text-decoration: none;
     color: inherit;
     border: 1px solid var(--border-gray);
@@ -169,6 +168,16 @@ body {
     border-radius: 10px;
     overflow: hidden;
     transition: box-shadow 0.2s ease, transform 0.05s ease;
+}
+
+.card a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.card a:hover {
+    text-decoration: none;
+    color: inherit;
 }
 
 .card:hover {
@@ -185,12 +194,27 @@ body {
 
 .card-body {
     padding: 12px;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .card-title {
     margin: 0 0 6px 0;
     font-size: 18px;
     font-weight: 600;
+    color: #000;
+}
+
+.card-actions {
+    margin-top: auto;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.card-actions form {
+    margin: 0;
 }
 
 .card-meta {
@@ -198,6 +222,10 @@ body {
     justify-content: space-between;
     color: var(--text-muted);
     font-size: 14px;
+}
+
+.card-meta {
+    margin-top: auto;
 }
 
 .price {

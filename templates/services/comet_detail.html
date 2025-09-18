@@ -5,12 +5,9 @@
     <img class="detail-image" src="{{ comet.get_minio_url }}" alt="{{ comet.name }}">
     <div class="detail-body">
         <h1>{{ comet.name }}</h1>
-        <div class="detail-meta">
-            <span class="price">{{ comet.price }} ₽</span>
-        </div>
         <p class="desc">{{ comet.description }}</p>
 
-        
+
         <div class="comet-coefficients">
             <h3>Коэффициенты кометы:</h3>
             <p><strong>k_x:</strong> {{ comet.k_x }} а.е.</p>
@@ -18,13 +15,6 @@
             <p><strong>k_z:</strong> {{ comet.k_z }} а.е.</p>
         </div>
 
-        <div class="nav-links">
-            <form method="post" action="{% url 'services:add_comet_to_request' comet.id %}" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-red">Добавить в заявку</button>
-            </form>
-            <a class="btn btn-red" href="{% url 'services:request_detail' request_id %}">к заявке →</a>
-        </div>
 
     </div>
 

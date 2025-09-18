@@ -2,14 +2,14 @@
 
 {% block content %}
 <section class="toolbar" data-request-id="{{ request_id }}" data-cart-count="{{ cart_count }}">
-    <form method="get" action="{% url 'services:comets_list' %}" class="search-form">
+    <form method="get" action="{% url 'comets:comets_list' %}" class="search-form">
         <input type="hidden" name="request_id" value="{{ request_id }}">
         <input type="text" name="q" placeholder="Поиск по наименованию кометы" value="{{ query }}">
         <button type="submit" class="btn btn-red">Найти</button>
     </form>
 
     {% if current_request %}
-    <a class="cart-card" href="{% url 'services:request_detail' current_request.id %}">
+    <a class="cart-card" href="{% url 'comets:trajectory_calculation_detail' current_request.id %}">
         <div class="cart-title">Заявка #{{ current_request.id }}</div>
         <div class="cart-count">В корзине: <span class="badge badge-primary">{{ cart_count }}</span></div>
     </a>
@@ -23,16 +23,23 @@
 
 <section class="grid">
     {% for comet in comets %}
-    <a class="card" href="{% url 'services:comet_detail' comet.id %}?request_id={{ request_id }}"
-        data-comet-id="{{ comet.id }}" data-minio-url="{{ comet.get_minio_url }}">
-        <img src="{{ comet.get_minio_url }}" alt="{{ comet.name }}">
-        <div class="card-body">
-            <h3 class="card-title">{{ comet.name }}</h3>
-            <div class="card-meta">
-                <span class="price">{{ comet.price }} ₽</span>
+    <div class="card" data-comet-id="{{ comet.id }}" data-minio-url="{{ comet.get_minio_url }}">
+        <a href="{% url 'comets:comet_detail' comet.id %}?request_id={{ request_id }}">
+            <img src="{{ comet.get_minio_url }}" alt="{{ comet.name }}">
+            <div class="card-body">
+                <h3 class="card-title">{{ comet.name }}</h3>
+                <div class="card-meta">
+                    <span class="price">{{ comet.price }} ₽</span>
+                </div>
             </div>
+        </a>
+        <div class="card-actions">
+            <form method="post" action="{% url 'comets:add_comet_to_request' comet.id %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-red">Добавить в заявку</button>
+            </form>
         </div>
-    </a>
+    </div>
     {% empty %}
     <p class="no-results">Кометы не найдены</p>
     {% endfor %}

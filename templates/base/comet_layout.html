@@ -12,7 +12,7 @@
 <body>
     <header class="app-header">
         <a class="home-link btn btn-home"
-            href="{% url 'services:comets_list' %}?request_id={{ request_id|default:1 }}">Домой</a>
+            href="{% url 'comets:comets_list' %}?request_id={{ request_id|default:1 }}">Домой</a>
     </header>
 
     <main class="container">

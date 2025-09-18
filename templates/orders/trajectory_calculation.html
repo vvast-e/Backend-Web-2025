@@ -60,9 +60,10 @@
 
     <div class="order-actions" style="display: flex; justify-content: flex-start; align-items: center; gap: 12px;">
         {% if calc_request.status == 'draft' %}
-        <form method="post" action="{% url 'services:delete_request' request_id %}" style="display: inline;">
+        <form method="post" action="{% url 'comets:delete_trajectory_calculation' request_id %}"
+            style="display: inline;">
             {% csrf_token %}
-            <button type="submit" class="btn btn-red" onclick="return confirm('Удалить заявку?')">
+            <button type="submit" class="btn btn-red">
                 Удалить заявку
             </button>
         </form>
