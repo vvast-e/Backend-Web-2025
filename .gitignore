@@ -30,4 +30,4 @@ db.sqlite3
 # Byte-compiled / optimized / DLL files
 *.pyc
 
-minio/data/
+minio/data/.minio.sys
