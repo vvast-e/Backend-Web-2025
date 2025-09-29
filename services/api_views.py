@@ -95,6 +95,7 @@ class CometViewSet(viewsets.ModelViewSet):
 
 
 class CalculationRequestViewSet(viewsets.ModelViewSet):
+    queryset = CalculationRequest.objects.all()
     serializer_class = CalculationRequestSerializer
     permission_classes = [IsAuthenticated]
     

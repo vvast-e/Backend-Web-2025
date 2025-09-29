@@ -3,9 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .api_views import CometViewSet, CalculationRequestViewSet, RequestCometViewSet, UserViewSet
 
 router = DefaultRouter()
-router.register(r'comets', CometViewSet)
-router.register(r'requests', CalculationRequestViewSet)
-router.register(r'users', UserViewSet)
+router.register(r'comets', CometViewSet, basename='comet')
+router.register(r'requests', CalculationRequestViewSet, basename='request')
+router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
     path('', include(router.urls)),
