@@ -16,7 +16,18 @@ from .serializers import CometSerializer, CalculationRequestSerializer, RequestC
 
 def get_current_user():
     """Singleton для получения зафиксированного пользователя-создателя"""
-    return User.objects.get(username='admin')
+    user, created = User.objects.get_or_create(
+        username='admin',
+        defaults={
+            'email': 'admin@comets.com',
+            'is_staff': True,
+            'is_superuser': True
+        }
+    )
+    if created:
+        user.set_password('admin123')
+        user.save()
+    return user
 
 
 class CometViewSet(viewsets.ModelViewSet):
@@ -27,8 +38,16 @@ class CometViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Comet.objects.filter(is_deleted=False)
         name = self.request.query_params.get('name', None)
+        price_min = self.request.query_params.get('price_min', None)
+        price_max = self.request.query_params.get('price_max', None)
+        
         if name:
             queryset = queryset.filter(name__icontains=name)
+        if price_min:
+            queryset = queryset.filter(price__gte=price_min)
+        if price_max:
+            queryset = queryset.filter(price__lte=price_max)
+        
         return queryset
     
     def destroy(self, request, *args, **kwargs):
@@ -98,6 +117,7 @@ class CalculationRequestViewSet(viewsets.ModelViewSet):
     queryset = CalculationRequest.objects.all()
     serializer_class = CalculationRequestSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'put', 'patch', 'delete', 'head', 'options']
     
     def get_queryset(self):
         """Фильтрация по статусу и дате формирования"""
