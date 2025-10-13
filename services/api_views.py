@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -33,7 +33,7 @@ def get_current_user():
 class CometViewSet(viewsets.ModelViewSet):
     queryset = Comet.objects.filter(is_deleted=False)
     serializer_class = CometSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def get_queryset(self):
         queryset = Comet.objects.filter(is_deleted=False)
@@ -57,7 +57,7 @@ class CometViewSet(viewsets.ModelViewSet):
         instance.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='addImage')
     def add_image(self, request, pk=None):
         """Добавление изображения к услуге"""
         comet = self.get_object()
@@ -78,7 +78,7 @@ class CometViewSet(viewsets.ModelViewSet):
         
         return Response({'image_key': new_filename}, status=status.HTTP_201_CREATED)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='addToRequest')
     def add_to_request(self, request, pk=None):
         """Добавление услуги в заявку-черновик"""
         comet = self.get_object()
@@ -113,28 +113,33 @@ class CometViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class CalculationRequestViewSet(viewsets.ModelViewSet):
+class TrajectoriesViewSet(viewsets.ModelViewSet):
     queryset = CalculationRequest.objects.all()
     serializer_class = CalculationRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     http_method_names = ['get', 'put', 'patch', 'delete', 'head', 'options']
     
     def get_queryset(self):
-        """Фильтрация по статусу и дате формирования"""
-        queryset = CalculationRequest.objects.exclude(status__in=['deleted', 'draft'])
-        
-        status_filter = self.request.query_params.get('status', None)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        date_from = self.request.query_params.get('date_from', None)
-        date_to = self.request.query_params.get('date_to', None)
-        if date_from:
-            queryset = queryset.filter(formed_at__gte=date_from)
-        if date_to:
-            queryset = queryset.filter(formed_at__lte=date_to)
-        
-        return queryset
+        """Для списка применяем фильтры; для detail-операций возвращаем все заявки."""
+        qs = CalculationRequest.objects.all()
+        if getattr(self, 'action', None) == 'list':
+            qs = qs.exclude(status__in=['deleted', 'draft'])
+            status_filter = self.request.query_params.get('status', None)
+            if status_filter:
+                qs = qs.filter(status=status_filter)
+            date_from = self.request.query_params.get('date_from', None)
+            date_to = self.request.query_params.get('date_to', None)
+            if date_from:
+                qs = qs.filter(formed_at__gte=date_from)
+            if date_to:
+                qs = qs.filter(formed_at__lte=date_to)
+        return qs
+
+    def retrieve(self, request, pk=None):
+        """Получение заявки по id без исключения draft/deleted (по методичке: GET одна запись)."""
+        instance = get_object_or_404(CalculationRequest, id=pk)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
     def cart_info(self, request):
@@ -238,7 +243,7 @@ class CalculationRequestViewSet(viewsets.ModelViewSet):
 
 class RequestCometViewSet(viewsets.ModelViewSet):
     serializer_class = RequestCometSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def get_queryset(self):
         request_id = self.kwargs.get('request_id')
@@ -250,11 +255,33 @@ class RequestCometViewSet(viewsets.ModelViewSet):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def perform_create(self, serializer):
+        """Создание позиции м-м: привязать request из URL и comet по comet_id."""
+        request_id = self.kwargs.get('request_id')
+        calc_request = get_object_or_404(CalculationRequest, id=request_id)
+        comet_id = serializer.validated_data.pop('comet_id')
+        comet = get_object_or_404(Comet, id=comet_id)
+        serializer.save(request=calc_request, comet=comet)
+
+    def update(self, request, *args, **kwargs):
+        """Обновление позиции: разрешить передавать comet_id (необязательно)."""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        comet_id = serializer.validated_data.pop('comet_id', None)
+        if comet_id is not None:
+            comet = get_object_or_404(Comet, id=comet_id)
+            serializer.save(comet=comet)
+        else:
+            serializer.save()
+        return Response(serializer.data)
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     @action(detail=False, methods=['post'])
     def register(self, request):
