@@ -10,8 +10,8 @@ from django.utils import timezone
 import uuid
 import os
 import math
-from .models import Comet, CalculationRequest, RequestComet
-from .serializers import CometSerializer, CalculationRequestSerializer, RequestCometSerializer, UserSerializer
+from .models import Comet, Distance, RequestComet
+from .serializers import CometSerializer, DistanceSerializer, RequestCometSerializer, UserSerializer
 
 
 def get_current_user():
@@ -85,7 +85,7 @@ class CometViewSet(viewsets.ModelViewSet):
         current_user = get_current_user()
         
         # Создаем или получаем заявку-черновик
-        calc_request, created = CalculationRequest.objects.get_or_create(
+        distance, created = Distance.objects.get_or_create(
             astronomer=current_user,
             status='draft',
             defaults={}
@@ -93,11 +93,11 @@ class CometViewSet(viewsets.ModelViewSet):
         
         # Добавляем услугу в заявку
         request_comet, created = RequestComet.objects.get_or_create(
-            request=calc_request,
+            request=distance,
             comet=comet,
             defaults={
                 'quantity': 1,
-                'sort_order': RequestComet.objects.filter(request=calc_request).count() + 1,
+                'sort_order': RequestComet.objects.filter(request=distance).count() + 1,
                 'is_main': False,
                 'coords_x': 0.0,
                 'coords_y': 0.0,
@@ -109,19 +109,19 @@ class CometViewSet(viewsets.ModelViewSet):
             request_comet.quantity += 1
             request_comet.save()
         
-        serializer = CalculationRequestSerializer(calc_request)
+        serializer = DistanceSerializer(distance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class TrajectoriesViewSet(viewsets.ModelViewSet):
-    queryset = CalculationRequest.objects.all()
-    serializer_class = CalculationRequestSerializer
+    queryset = Distance.objects.all()
+    serializer_class = DistanceSerializer
     permission_classes = [AllowAny]
     http_method_names = ['get', 'put', 'patch', 'delete', 'head', 'options']
     
     def get_queryset(self):
         """Для списка применяем фильтры; для detail-операций возвращаем все заявки."""
-        qs = CalculationRequest.objects.all()
+        qs = Distance.objects.all()
         if getattr(self, 'action', None) == 'list':
             qs = qs.exclude(status__in=['deleted', 'draft'])
             status_filter = self.request.query_params.get('status', None)
@@ -137,7 +137,7 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, pk=None):
         """Получение заявки по id без исключения draft/deleted (по методичке: GET одна запись)."""
-        instance = get_object_or_404(CalculationRequest, id=pk)
+        instance = get_object_or_404(Distance, id=pk)
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
     
@@ -147,7 +147,7 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
         current_user = get_current_user()
         
         try:
-            draft_request = CalculationRequest.objects.get(
+            draft_request = Distance.objects.get(
                 astronomer=current_user,
                 status='draft'
             )
@@ -156,7 +156,7 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
                 'request_id': draft_request.id,
                 'items_count': items_count
             })
-        except CalculationRequest.DoesNotExist:
+        except Distance.DoesNotExist:
             return Response({
                 'request_id': None,
                 'items_count': 0
@@ -165,35 +165,35 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['put'])
     def form_request(self, request, pk=None):
         """Формирование заявки создателем"""
-        calc_request = self.get_object()
+        distance = self.get_object()
         current_user = get_current_user()
         
-        if calc_request.astronomer != current_user:
+        if distance.astronomer != current_user:
             return Response({'error': 'Нет прав для формирования этой заявки'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
-        if calc_request.status != 'draft':
+        if distance.status != 'draft':
             return Response({'error': 'Можно формировать только черновики'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
         # Проверка обязательных полей
-        if not calc_request.astronomers_list or not calc_request.telescopes_list:
+        if not distance.astronomers_list or not distance.telescopes_list:
             return Response({'error': 'Не заполнены обязательные поля'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        calc_request.status = 'formed'
-        calc_request.formed_at = timezone.now()
-        calc_request.save()
+        distance.status = 'formed'
+        distance.formed_at = timezone.now()
+        distance.save()
         
-        serializer = CalculationRequestSerializer(calc_request)
+        serializer = DistanceSerializer(distance)
         return Response(serializer.data)
     
     @action(detail=True, methods=['put'])
     def complete_request(self, request, pk=None):
         """Завершение/отклонение заявки модератором"""
-        calc_request = self.get_object()
+        distance = self.get_object()
         
-        if calc_request.status != 'formed':
+        if distance.status != 'formed':
             return Response({'error': 'Можно завершать только сформированные заявки'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
@@ -201,26 +201,26 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
         moderator = get_current_user()
         
         if action_type == 'complete':
-            calc_request.status = 'completed'
+            distance.status = 'completed'
             # Расчет общего расстояния
             total_distance = 0
-            for req_comet in calc_request.request_comets.all():
-                distance = math.sqrt(
+            for req_comet in distance.distance_comets.all():
+                distance_calc = math.sqrt(
                     (float(req_comet.coords_x) - float(req_comet.comet.k_x))**2 + 
                     (float(req_comet.coords_y) - float(req_comet.comet.k_y))**2 + 
                     (float(req_comet.coords_z) - float(req_comet.comet.k_z))**2
                 )
-                total_distance += distance * req_comet.quantity
+                total_distance += distance_calc * req_comet.quantity
             
-            calc_request.total_distance_au = total_distance
+            distance.total_distance_au = total_distance
         else:
-            calc_request.status = 'rejected'
+            distance.status = 'rejected'
         
-        calc_request.moderator = moderator
-        calc_request.completed_at = timezone.now()
-        calc_request.save()
+        distance.moderator = moderator
+        distance.completed_at = timezone.now()
+        distance.save()
         
-        serializer = CalculationRequestSerializer(calc_request)
+        serializer = DistanceSerializer(distance)
         return Response(serializer.data)
     
     def destroy(self, request, *args, **kwargs):
@@ -258,10 +258,10 @@ class RequestCometViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Создание позиции м-м: привязать request из URL и comet по comet_id."""
         request_id = self.kwargs.get('request_id')
-        calc_request = get_object_or_404(CalculationRequest, id=request_id)
+        distance = get_object_or_404(Distance, id=request_id)
         comet_id = serializer.validated_data.pop('comet_id')
         comet = get_object_or_404(Comet, id=comet_id)
-        serializer.save(request=calc_request, comet=comet)
+        serializer.save(request=distance, comet=comet)
 
     def update(self, request, *args, **kwargs):
         """Обновление позиции: разрешить передавать comet_id (необязательно)."""

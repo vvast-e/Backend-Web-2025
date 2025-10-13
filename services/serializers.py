@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Comet, CalculationRequest, RequestComet
+from .models import Comet, Distance, RequestComet
 
 
 class CometSerializer(serializers.ModelSerializer):
@@ -25,15 +25,15 @@ class RequestCometSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
-class CalculationRequestSerializer(serializers.ModelSerializer):
+class DistanceSerializer(serializers.ModelSerializer):
     astronomer_username = serializers.CharField(source='astronomer.username', read_only=True)
     moderator_username = serializers.CharField(source='moderator.username', read_only=True)
-    request_comets = RequestCometSerializer(many=True, read_only=True)
+    distance_comets = RequestCometSerializer(many=True, read_only=True)
     
     class Meta:
-        model = CalculationRequest
+        model = Distance
         fields = ['id', 'status', 'created_at', 'astronomer_username', 'formed_at', 'completed_at', 
-                 'moderator_username', 'astronomers_list', 'telescopes_list', 'total_distance_au', 'request_comets']
+                 'moderator_username', 'astronomers_list', 'telescopes_list', 'total_distance_au', 'distance_comets']
         read_only_fields = ['id', 'created_at', 'formed_at', 'completed_at', 'astronomer_username', 'moderator_username']
 
 

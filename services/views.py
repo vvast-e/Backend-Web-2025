@@ -3,7 +3,7 @@ from django.http import Http404, HttpResponse
 from django.contrib.auth.models import User
 from django.db import connection
 from django.contrib import messages
-from .models import Comet, CalculationRequest, RequestComet
+from .models import Comet, Distance, RequestComet
 from .data import calculate_heliocentric_distance_au
 from datetime import date
 import math
@@ -24,12 +24,12 @@ def services_list(request):
     cart_count = 0
     if request.user.is_authenticated:
         try:
-            current_request = CalculationRequest.objects.get(
+            current_request = Distance.objects.get(
                 astronomer=request.user, 
                 status='draft'
             )
             cart_count = RequestComet.objects.filter(request=current_request).count()
-        except CalculationRequest.DoesNotExist:
+        except Distance.DoesNotExist:
             pass
     
     context = {
@@ -59,14 +59,14 @@ def comet_detail(request, comet_id):
 
 def trajectory_calculation_detail(request, request_id):
 
-    calc_request = get_object_or_404(CalculationRequest, id=request_id)
+    distance = get_object_or_404(Distance, id=request_id)
     
 
-    if calc_request.status == 'deleted':
+    if distance.status == 'deleted':
         raise Http404("Заявка удалена")
     
 
-    request_comets = RequestComet.objects.filter(request=calc_request).select_related('comet')
+    request_comets = RequestComet.objects.filter(request=distance).select_related('comet')
     
     items = []
     for req_comet in request_comets:
@@ -93,8 +93,8 @@ def trajectory_calculation_detail(request, request_id):
     cart_count = request_comets.count()
     
 
-    astronomers_list = calc_request.astronomers_list or ['Судьи В. Г.', 'Коваленко А. И.', 'Петров С. М.']
-    telescopes_list = calc_request.telescopes_list or ['Хаббл', 'Кеплер', 'Джеймс Уэбб']
+    astronomers_list = distance.astronomers_list or ['Судьи В. Г.', 'Коваленко А. И.', 'Петров С. М.']
+    telescopes_list = distance.telescopes_list or ['Хаббл', 'Кеплер', 'Джеймс Уэбб']
     
     context = {
         'title': f"Заявка #{request_id}",
@@ -103,7 +103,7 @@ def trajectory_calculation_detail(request, request_id):
         'cart_count': cart_count,
         'astronomer': '—',  # Будет выбираться из списка
         'telescope': '—',   # Будет выбираться из списка
-        'calc_request': calc_request,
+        'calc_request': distance,
         'astronomers_list': astronomers_list,
         'telescopes_list': telescopes_list,
     }
@@ -121,7 +121,7 @@ def add_comet_to_request(request, comet_id):
     comet = get_object_or_404(Comet, id=comet_id, is_deleted=False)
     
 
-    calc_request, created = CalculationRequest.objects.get_or_create(
+    distance, created = Distance.objects.get_or_create(
         astronomer=request.user,
         status='draft',
         defaults={}
@@ -129,11 +129,11 @@ def add_comet_to_request(request, comet_id):
     
 
     request_comet, created = RequestComet.objects.get_or_create(
-        request=calc_request,
+        request=distance,
         comet=comet,
         defaults={
             'quantity': 1,
-            'sort_order': RequestComet.objects.filter(request=calc_request).count() + 1,
+            'sort_order': RequestComet.objects.filter(request=distance).count() + 1,
             'is_main': False,
             'coords_x': 0.0,
             'coords_y': 0.0,
@@ -162,15 +162,15 @@ def delete_trajectory_calculation(request, request_id):
         return redirect('comets:comets_list')
     
 
-    calc_request = get_object_or_404(CalculationRequest, id=request_id)
-    if calc_request.astronomer != request.user:
+    distance = get_object_or_404(Distance, id=request_id)
+    if distance.astronomer != request.user:
         messages.error(request, "Нет прав для удаления этой заявки")
         return redirect('comets:comets_list')
     
 
     with connection.cursor() as cursor:
         cursor.execute(
-            "UPDATE services_calculationrequest SET status = %s WHERE id = %s",
+            "UPDATE services_distance SET status = %s WHERE id = %s",
             ['deleted', request_id]
         )
     

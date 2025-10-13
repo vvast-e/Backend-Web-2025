@@ -35,7 +35,7 @@ class Comet(models.Model):
         return None
 
 
-class CalculationRequest(models.Model):
+class Distance(models.Model):
     
     STATUS_CHOICES = [
         ('draft', 'Черновик'),
@@ -47,17 +47,17 @@ class CalculationRequest(models.Model):
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name="Статус")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
-    astronomer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_requests', verbose_name="Астроном")
+    astronomer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_distances', verbose_name="Астроном")
     formed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата формирования")
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата завершения")
-    moderator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='moderated_requests', verbose_name="Модератор")
+    moderator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='moderated_distances', verbose_name="Модератор")
     astronomers_list = models.JSONField(default=default_astronomers_list, verbose_name="Список астрономов")
     telescopes_list = models.JSONField(default=default_telescopes_list, verbose_name="Список телескопов")
     total_distance_au = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Общее расстояние, а.е.")
 
     class Meta:
-        verbose_name = "Заявка на расчёт"
-        verbose_name_plural = "Заявки на расчёты"
+        verbose_name = "Расчёт расстояния"
+        verbose_name_plural = "Расчёты расстояний"
         constraints = [
             models.UniqueConstraint(
                 fields=['astronomer'],
@@ -67,14 +67,14 @@ class CalculationRequest(models.Model):
         ]
 
     def __str__(self):
-        return f"Заявка #{self.id}"
+        return f"Расчёт расстояния #{self.id}"
 
     def total_items(self):
-        return sum(item.quantity for item in self.request_comets.all())
+        return sum(item.quantity for item in self.distance_comets.all())
 
     def clean(self):
         if self.status == 'draft':
-            existing_draft = CalculationRequest.objects.filter(
+            existing_draft = Distance.objects.filter(
                 astronomer=self.astronomer, 
                 status='draft'
             ).exclude(pk=self.pk)
@@ -84,7 +84,7 @@ class CalculationRequest(models.Model):
 
 class RequestComet(models.Model):
 
-    request = models.ForeignKey(CalculationRequest, on_delete=models.CASCADE, related_name='request_comets')
+    request = models.ForeignKey(Distance, on_delete=models.CASCADE, related_name='distance_comets')
     comet = models.ForeignKey(Comet, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1, verbose_name="Количество")
     sort_order = models.PositiveIntegerField(default=1, verbose_name="Порядок")
