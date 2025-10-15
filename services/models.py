@@ -1,6 +1,8 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, UserManager
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.conf import settings
 
 
 def default_astronomers_list():
@@ -35,7 +37,7 @@ class Comet(models.Model):
         return None
 
 
-class CalculationRequest(models.Model):
+class Distance(models.Model):
     
     STATUS_CHOICES = [
         ('draft', 'Черновик'),
@@ -47,17 +49,17 @@ class CalculationRequest(models.Model):
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name="Статус")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
-    astronomer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_requests', verbose_name="Астроном")
+    astronomer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_distances', verbose_name="Астроном")
     formed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата формирования")
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата завершения")
-    moderator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='moderated_requests', verbose_name="Модератор")
+    moderator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='moderated_distances', verbose_name="Модератор")
     astronomers_list = models.JSONField(default=default_astronomers_list, verbose_name="Список астрономов")
     telescopes_list = models.JSONField(default=default_telescopes_list, verbose_name="Список телескопов")
     total_distance_au = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Общее расстояние, а.е.")
 
     class Meta:
-        verbose_name = "Заявка на расчёт"
-        verbose_name_plural = "Заявки на расчёты"
+        verbose_name = "Расчёт расстояния"
+        verbose_name_plural = "Расчёты расстояний"
         constraints = [
             models.UniqueConstraint(
                 fields=['astronomer'],
@@ -67,14 +69,14 @@ class CalculationRequest(models.Model):
         ]
 
     def __str__(self):
-        return f"Заявка #{self.id}"
+        return f"Расчёт расстояния #{self.id}"
 
     def total_items(self):
-        return sum(item.quantity for item in self.request_comets.all())
+        return sum(item.quantity for item in self.distance_comets.all())
 
     def clean(self):
         if self.status == 'draft':
-            existing_draft = CalculationRequest.objects.filter(
+            existing_draft = Distance.objects.filter(
                 astronomer=self.astronomer, 
                 status='draft'
             ).exclude(pk=self.pk)
@@ -84,7 +86,7 @@ class CalculationRequest(models.Model):
 
 class RequestComet(models.Model):
 
-    request = models.ForeignKey(CalculationRequest, on_delete=models.CASCADE, related_name='request_comets')
+    request = models.ForeignKey(Distance, on_delete=models.CASCADE, related_name='distance_comets')
     comet = models.ForeignKey(Comet, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1, verbose_name="Количество")
     sort_order = models.PositiveIntegerField(default=1, verbose_name="Порядок")
@@ -100,3 +102,27 @@ class RequestComet(models.Model):
 
     def __str__(self):
         return f"{self.comet.name} в заявке #{self.request.id}"
+
+
+class NewUserManager(UserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError('User must have an email address')
+        
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+
+class CustomUser(AbstractBaseUser, PermissionsMixin):
+    email = models.EmailField("email адрес", unique=True)
+    password = models.CharField(max_length=128, verbose_name="Пароль")
+    is_staff = models.BooleanField(default=False, verbose_name="Является ли пользователь менеджером?")
+    is_superuser = models.BooleanField(default=False, verbose_name="Является ли пользователь админом?")
+    
+    USERNAME_FIELD = 'email'
+    
+    objects = NewUserManager()
+    

@@ -11,11 +11,11 @@ urlpatterns = [
     path('comet/<int:comet_id>/', views.comet_detail, name='comet_detail'),
     
 
-    path('trajectories/<int:request_id>/', views.trajectory_calculation_detail, name='trajectory_calculation_detail'),
+    path('distance/<int:request_id>/', views.trajectory_calculation_detail, name='trajectory_calculation_detail'),
     
 
     path('comet/add/<int:comet_id>/', views.add_comet_to_request, name='add_comet_to_request'),
     
 
-    path('trajectories/<int:request_id>/delete/', views.delete_trajectory_calculation, name='delete_trajectory_calculation'),
+    path('distance/<int:request_id>/delete/', views.delete_trajectory_calculation, name='delete_trajectory_calculation'),
 ]

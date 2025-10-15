@@ -34,5 +34,13 @@ services:
     ports:
       - "8080:8080"
 
+  redis:
+    image: redis:7
+    container_name: lab4-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+
 volumes:
   pgdata:

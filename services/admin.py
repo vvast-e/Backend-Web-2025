@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Comet, CalculationRequest, RequestComet
+from .models import Comet, Distance, RequestComet
 
 
 @admin.register(Comet)
@@ -9,8 +9,8 @@ class CometAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
-@admin.register(CalculationRequest)
-class CalculationRequestAdmin(admin.ModelAdmin):
+@admin.register(Distance)
+class DistanceAdmin(admin.ModelAdmin):
     list_display = ['id', 'status', 'astronomer', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['astronomer__username']

@@ -3,7 +3,7 @@ from django.http import Http404, HttpResponse
 from django.contrib.auth.models import User
 from django.db import connection
 from django.contrib import messages
-from .models import Comet, CalculationRequest, RequestComet
+from .models import Comet, Distance, RequestComet
 from .data import calculate_heliocentric_distance_au
 from datetime import date
 import math
@@ -24,12 +24,12 @@ def services_list(request):
     cart_count = 0
     if request.user.is_authenticated:
         try:
-            current_request = CalculationRequest.objects.get(
+            current_request = Distance.objects.get(
                 astronomer=request.user, 
                 status='draft'
             )
             cart_count = RequestComet.objects.filter(request=current_request).count()
-        except CalculationRequest.DoesNotExist:
+        except Distance.DoesNotExist:
             pass
     
     context = {
@@ -59,7 +59,7 @@ def comet_detail(request, comet_id):
 
 def trajectory_calculation_detail(request, request_id):
 
-    calc_request = get_object_or_404(CalculationRequest, id=request_id)
+    calc_request = get_object_or_404(Distance, id=request_id)
     
 
     if calc_request.status == 'deleted':
@@ -120,8 +120,7 @@ def add_comet_to_request(request, comet_id):
     
     comet = get_object_or_404(Comet, id=comet_id, is_deleted=False)
     
-
-    calc_request, created = CalculationRequest.objects.get_or_create(
+    calc_request, created = Distance.objects.get_or_create(
         astronomer=request.user,
         status='draft',
         defaults={}
@@ -162,7 +161,7 @@ def delete_trajectory_calculation(request, request_id):
         return redirect('comets:comets_list')
     
 
-    calc_request = get_object_or_404(CalculationRequest, id=request_id)
+    calc_request = get_object_or_404(Distance, id=request_id)
     if calc_request.astronomer != request.user:
         messages.error(request, "Нет прав для удаления этой заявки")
         return redirect('comets:comets_list')
