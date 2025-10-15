@@ -218,7 +218,7 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
         serializer = DistanceSerializer(calc_request)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['put'], permission_classes=[IsManager])
+    @action(detail=True, methods=['put'], permission_classes=[IsAdmin])
     @swagger_auto_schema(request_body=None)
     def complete_request(self, request, pk=None):
         """Завершение/отклонение заявки модератором"""
