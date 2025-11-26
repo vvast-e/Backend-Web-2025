@@ -23,17 +23,18 @@ class RedisSessionAuthentication(BaseAuthentication):
         try:
             # Проверка на отзыв сессии (blacklist)
             if self._redis.exists(f"bl:{session_id}"):
-                raise AuthenticationFailed('Session revoked')
+                return None
             email_bytes = self._redis.get(session_id)
-        except Exception as exc:
-            raise AuthenticationFailed('Redis unavailable') from exc
+        except Exception:
+            # Если Redis недоступен, не блокируем гостевой доступ
+            return None
         if not email_bytes:
-            raise AuthenticationFailed('Invalid session')
+            return None
         email = email_bytes.decode('utf-8') if isinstance(email_bytes, (bytes, bytearray)) else str(email_bytes)
         try:
             user = self._user_model.objects.get(email=email)
         except self._user_model.DoesNotExist:
-            raise AuthenticationFailed('User not found')
+            return None
         return (user, None)
 
 

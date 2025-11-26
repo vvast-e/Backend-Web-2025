@@ -14,11 +14,16 @@ from pathlib import Path
 import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
- 
+
 SECRET_KEY = 'django-insecure-p$=ai)p4#+!7sjt5)o0kjd#b8n2@s3@_bkx%uagwh!&l0twc0-'
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "172.16.239.76",
+    "172.20.10.4"
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',

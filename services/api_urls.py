@@ -18,6 +18,7 @@ urlpatterns = [
 
     # Пользовательские действия без auto CRUD
     path('users/register/', UserViewSet.as_view({'post': 'register'})),
+    path('users/login/', UserViewSet.as_view({'post': 'login'})),
     path('users/profile/', UserViewSet.as_view({'get': 'profile', 'put': 'update_profile'})),
     path('users/logout/', UserViewSet.as_view({'post': 'logout'})),
 ]

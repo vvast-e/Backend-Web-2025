@@ -271,94 +271,65 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class RequestCometViewSet(viewsets.ModelViewSet):
-    serializer_class = RequestCometSerializer
+class RequestCometViewSet(viewsets.ViewSet):
+    """
+    Обработка операций над м-м связью заявки и услуги.
+    По требованию остаются только два метода без указания PK м-м:
+    DELETE и PUT с передачей comet_id.
+    """
     authentication_classes = [RedisSessionAuthentication, SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    http_method_names = ['put', 'delete']
-    
-    def get_queryset(self):
-        request_id = self.kwargs.get('request_id')
-        return RequestComet.objects.filter(request_id=request_id)
-    
+    permission_classes = [IsAuthenticated]
+
+    def _get_request_comet(self, request_id, comet_id):
+        return RequestComet.objects.get(
+            request_id=request_id,
+            comet_id=comet_id
+        )
+
     @action(detail=False, methods=['delete'], url_path='delete')
     def delete_comet_from_request(self, request, request_id=None):
         """Удаление услуги из заявки по comet_id без PK м-м"""
         comet_id = request.data.get('comet_id')
         if not comet_id:
             return Response({'error': 'comet_id обязателен'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
-            request_comet = RequestComet.objects.get(
-                request_id=request_id, 
-                comet_id=comet_id
-            )
+            request_comet = self._get_request_comet(request_id, comet_id)
             request_comet.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except RequestComet.DoesNotExist:
             return Response({'error': 'Связь не найдена'}, status=status.HTTP_404_NOT_FOUND)
-    
+
     @action(detail=False, methods=['put'], url_path='update')
     def update_comet_in_request(self, request, request_id=None):
-        """Изменение м-м по comet_id без PK м-м"""
+        """Изменение количества/порядка/координат по comet_id без PK м-м"""
         comet_id = request.data.get('comet_id')
         if not comet_id:
             return Response({'error': 'comet_id обязателен'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
-            request_comet = RequestComet.objects.get(
-                request_id=request_id,
-                comet_id=comet_id
-            )
-            serializer = RequestCometSerializer(
-                request_comet, 
-                data=request.data, 
-                partial=True
-            )
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            request_comet = self._get_request_comet(request_id, comet_id)
         except RequestComet.DoesNotExist:
             return Response({'error': 'Связь не найдена'}, status=status.HTTP_404_NOT_FOUND)
-    
-    def destroy(self, request, *args, **kwargs):
-        """Удаление услуги из заявки (старый метод с PK - оставлен для совместимости)"""
-        instance = self.get_object()
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def perform_create(self, serializer):
-        """Создание позиции м-м: привязать request из URL и comet по comet_id."""
-        request_id = self.kwargs.get('request_id')
-        distance = get_object_or_404(Distance, id=request_id)
-        comet_id = serializer.validated_data.pop('comet_id')
-        comet = get_object_or_404(Comet, id=comet_id)
-        serializer.save(request=distance, comet=comet)
+        allowed_fields = {'quantity', 'sort_order', 'coords_x', 'coords_y', 'coords_z', 'is_main'}
+        data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
-    def update(self, request, *args, **kwargs):
-        """Обновление позиции: разрешить передавать comet_id (необязательно)."""
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        comet_id = serializer.validated_data.pop('comet_id', None)
-        if comet_id is not None:
-            comet = get_object_or_404(Comet, id=comet_id)
-            serializer.save(comet=comet)
-        else:
+        serializer = RequestCometSerializer(request_comet, data=data, partial=True)
+        if serializer.is_valid():
             serializer.save()
-        return Response(serializer.data)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserViewSet(viewsets.ViewSet):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionAuthentication, BasicAuthentication, RedisSessionAuthentication]
     model_class = CustomUser
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_permissions(self):
-        if getattr(self, 'action', None) in ['register']:
+        if getattr(self, 'action', None) in ['register', 'login']:
             return [AllowAny()]
         return super().get_permissions()
 
@@ -400,41 +371,39 @@ class UserViewSet(viewsets.ViewSet):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @swagger_auto_schema(method='post', request_body=LoginSerializer)
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny], authentication_classes=[])
+    def login(self, request):
+        """Аутентификация с установкой session_id cookie"""
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-@permission_classes([AllowAny])
-@authentication_classes([])
-@csrf_exempt
-@swagger_auto_schema(method='post', request_body=LoginSerializer)
-@api_view(['POST'])
-def login_view(request):
-    # Принимаем и JSON (request.data), и form-data/x-www-form-urlencoded (request.POST)
-    email = (getattr(request, 'data', {}) or {}).get('email') or request.POST.get('email')
-    password = (getattr(request, 'data', {}) or {}).get('password') or request.POST.get('password')
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
 
-    if not email or not password:
-        return Response({'status': 'error', 'error': 'email/password required'}, status=status.HTTP_400_BAD_REQUEST)
+        user = authenticate(request, username=email, password=password)
+        if user is None:
+            return Response({'status': 'error', 'error': 'login failed'}, status=status.HTTP_401_UNAUTHORIZED)
 
-    user = authenticate(request, username=email, password=password)
-    if user is not None:
         random_key = str(uuid.uuid4())
         try:
             session_storage.set(random_key, email)
         except Exception:
             return Response({'status': 'error', 'error': 'redis unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        response = Response({'status': 'ok'})
-        response.set_cookie('session_id', random_key)
+
+        response = Response({'status': 'ok', 'user': {'email': user.email}})
+        response.set_cookie('session_id', random_key, httponly=True)
         return response
-    return Response({'status': 'error', 'error': 'login failed'}, status=status.HTTP_401_UNAUTHORIZED)
 
-
-def logout_view(request):
-    # ручной logout из корневого роута
-    session_id = request.COOKIES.get('session_id')
-    try:
-        if session_id:
-            r = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
-            r.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
-    except Exception:
-        pass
-    logout(request._request)
-    return Response({'status': 'Success'})
+    @action(detail=False, methods=['post'])
+    def logout(self, request):
+        """Деавторизация через ViewSet (заменяет старый logout_view)"""
+        session_id = request.COOKIES.get('session_id')
+        try:
+            if session_id:
+                r = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
+                r.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
+        except Exception:
+            pass
+        logout(request)
+        return Response({'message': 'Успешный выход'})
