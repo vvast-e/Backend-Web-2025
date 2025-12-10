@@ -15,6 +15,8 @@ urlpatterns = [
          RequestCometViewSet.as_view({'delete': 'delete_comet_from_request'})),
     path('distance/<int:request_id>/comets/update/',
          RequestCometViewSet.as_view({'put': 'update_comet_in_request'})),
+    path('distance/<int:request_id>/comets/<int:comet_id>/',
+         RequestCometViewSet.as_view({'put': 'update_comet_by_id'}), name='update-comet-by-id'),
 
     # Пользовательские действия без auto CRUD
     path('users/register/', UserViewSet.as_view({'post': 'register'})),

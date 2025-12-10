@@ -34,7 +34,10 @@ class RedisSessionAuthentication(BaseAuthentication):
         try:
             user = self._user_model.objects.get(email=email)
         except self._user_model.DoesNotExist:
-            return None
+            try:
+                user = self._user_model.objects.get(username=email)
+            except self._user_model.DoesNotExist:
+                return None
         return (user, None)
 
 

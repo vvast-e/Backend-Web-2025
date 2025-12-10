@@ -1,12 +1,7 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, UserManager
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.conf import settings
-
-
-def default_astronomers_list():
-    return ["Судьи В. Г.", "Коваленко А. И.", "Петров С. М."]
 
 
 def default_telescopes_list():
@@ -52,10 +47,11 @@ class Distance(models.Model):
     astronomer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_distances', verbose_name="Астроном")
     formed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата формирования")
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата завершения")
-    moderator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='moderated_distances', verbose_name="Модератор")
-    astronomers_list = models.JSONField(default=default_astronomers_list, verbose_name="Список астрономов")
+    chief_astronomer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='chief_astronomer_distances', verbose_name="Главный астроном")
     telescopes_list = models.JSONField(default=default_telescopes_list, verbose_name="Список телескопов")
-    total_distance_au = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Общее расстояние, а.е.")
+    
+    def calculated_comets_count(self):
+        return self.distance_comets.filter(distance_au__isnull=False).count()
 
     class Meta:
         verbose_name = "Расчёт расстояния"
@@ -72,7 +68,7 @@ class Distance(models.Model):
         return f"Расчёт расстояния #{self.id}"
 
     def total_items(self):
-        return sum(item.quantity for item in self.distance_comets.all())
+        return self.distance_comets.count()
 
     def clean(self):
         if self.status == 'draft':
@@ -88,12 +84,11 @@ class RequestComet(models.Model):
 
     request = models.ForeignKey(Distance, on_delete=models.CASCADE, related_name='distance_comets')
     comet = models.ForeignKey(Comet, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1, verbose_name="Количество")
     sort_order = models.PositiveIntegerField(default=1, verbose_name="Порядок")
-    is_main = models.BooleanField(default=False, verbose_name="Главная")
     coords_x = models.DecimalField(max_digits=6, decimal_places=3, verbose_name="Координата X")
     coords_y = models.DecimalField(max_digits=6, decimal_places=3, verbose_name="Координата Y")
     coords_z = models.DecimalField(max_digits=6, decimal_places=3, verbose_name="Координата Z")
+    distance_au = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Расстояние от Солнца, а.е.")
 
     class Meta:
         verbose_name = "Комета в заявке"
@@ -103,26 +98,3 @@ class RequestComet(models.Model):
     def __str__(self):
         return f"{self.comet.name} в заявке #{self.request.id}"
 
-
-class NewUserManager(UserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError('User must have an email address')
-        
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-
-class CustomUser(AbstractBaseUser, PermissionsMixin):
-    email = models.EmailField("email адрес", unique=True)
-    password = models.CharField(max_length=128, verbose_name="Пароль")
-    is_staff = models.BooleanField(default=False, verbose_name="Является ли пользователь менеджером?")
-    is_superuser = models.BooleanField(default=False, verbose_name="Является ли пользователь админом?")
-    
-    USERNAME_FIELD = 'email'
-    
-    objects = NewUserManager()
-    

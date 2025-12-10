@@ -13,13 +13,13 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.contrib.auth.models import User
-from .models import CustomUser
 from django.utils import timezone
 from django.conf import settings
 import redis
 import uuid
 import os
 import math
+import requests
 
 # Connect to our Redis instance
 session_storage = redis.StrictRedis(
@@ -35,10 +35,10 @@ from .serializers import CometSerializer, DistanceSerializer, RequestCometSerial
 
 def get_current_user():
     """Singleton для получения зафиксированного пользователя-создателя"""
-    user, created = CustomUser.objects.get_or_create(
-        email='admin@comets.com',
+    user, created = User.objects.get_or_create(
+        username='admin@comets.com',
         defaults={
-            'is_staff': True,
+            'email': 'admin@comets.com',
             'is_superuser': True
         }
     )
@@ -110,14 +110,16 @@ class CometViewSet(viewsets.ModelViewSet):
         return Response({'image_key': new_filename}, status=status.HTTP_201_CREATED)
     
     @swagger_auto_schema(request_body=None)
-    @action(detail=True, methods=['post'], url_path='addToRequest')
+    @action(detail=True, methods=['post'], url_path='addToRequest', permission_classes=[IsAuthenticated])
     def add_to_request(self, request, pk=None):
         """Добавление услуги в заявку-черновик"""
+        if not request.user or not request.user.is_authenticated:
+            return Response({'error': 'Требуется авторизация'}, status=status.HTTP_401_UNAUTHORIZED)
+        
         comet = self.get_object()
         
-        # Создаем или получаем заявку-черновик с автозаполнением astronomer
         distance, created = Distance.objects.get_or_create(
-            astronomer=request.user,  # АВТОЗАПОЛНЕНИЕ ИЗ request.user
+            astronomer=request.user,
             status='draft',
             defaults={}
         )
@@ -127,18 +129,12 @@ class CometViewSet(viewsets.ModelViewSet):
             request=distance,
             comet=comet,
             defaults={
-                'quantity': 1,
                 'sort_order': RequestComet.objects.filter(request=distance).count() + 1,
-                'is_main': False,
                 'coords_x': 0.0,
                 'coords_y': 0.0,
                 'coords_z': 0.0,
             }
         )
-        
-        if not created:
-            request_comet.quantity += 1
-            request_comet.save()
         
         serializer = DistanceSerializer(distance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -207,7 +203,7 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
                           status=status.HTTP_400_BAD_REQUEST)
         
         # Проверка обязательных полей
-        if not calc_request.astronomers_list or not calc_request.telescopes_list:
+        if not calc_request.telescopes_list:
             return Response({'error': 'Не заполнены обязательные поля'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
@@ -218,10 +214,10 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
         serializer = DistanceSerializer(calc_request)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['put'], permission_classes=[IsAdmin])
+    @action(detail=True, methods=['put'], permission_classes=[IsAdmin], url_path='complete')
     @swagger_auto_schema(request_body=None)
     def complete_request(self, request, pk=None):
-        """Завершение/отклонение заявки модератором"""
+        """Завершение/отклонение заявки главным астрономом"""
         calc_request = self.get_object()
         
         if calc_request.status != 'formed':
@@ -229,27 +225,88 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
                           status=status.HTTP_400_BAD_REQUEST)
         
         action_type = request.data.get('action', 'complete')
-        moderator = request.user
+        chief_astronomer = request.user
         
         if action_type == 'complete':
-            calc_request.status = 'completed'
-            # Расчет общего расстояния
-            total_distance = 0
-            for req_comet in calc_request.distance_comets.all():
-                distance = math.sqrt(
-                    (float(req_comet.coords_x) - float(req_comet.comet.k_x))**2 + 
-                    (float(req_comet.coords_y) - float(req_comet.comet.k_y))**2 + 
-                    (float(req_comet.coords_z) - float(req_comet.comet.k_z))**2
-                )
-                total_distance += distance * req_comet.quantity
-            
-            calc_request.total_distance_au = total_distance
-        else:
-            calc_request.status = 'rejected'
+            try:
+                for req_comet in calc_request.distance_comets.all():
+                    print(f"Calling async service for request {calc_request.id}, comet {req_comet.id}")
+                    async_response = requests.post(
+                        'http://localhost:8081/process',
+                        json={
+                            'request_id': calc_request.id,
+                            'comet_id': req_comet.id,
+                            'coords_x': float(req_comet.coords_x),
+                            'coords_y': float(req_comet.coords_y),
+                            'coords_z': float(req_comet.coords_z),
+                            'k_x': float(req_comet.comet.k_x),
+                            'k_y': float(req_comet.comet.k_y),
+                            'k_z': float(req_comet.comet.k_z),
+                        },
+                        timeout=5
+                    )
+                    print(f"Async service response: status={async_response.status_code}, body={async_response.text}")
+                    if async_response.status_code == 202:
+                        print(f"Successfully sent request {calc_request.id}, comet {req_comet.id} to async service")
+            except Exception as e:
+                print(f"Error calling async service: {e}")
+                import traceback
+                traceback.print_exc()
         
-        calc_request.moderator = moderator
+        calc_request.chief_astronomer = chief_astronomer
         calc_request.completed_at = timezone.now()
         calc_request.save()
+        
+        serializer = DistanceSerializer(calc_request)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['put'], permission_classes=[], url_path='async-result')
+    @swagger_auto_schema(request_body=None)
+    def async_result(self, request, pk=None):
+        """Приём результата асинхронного сервиса с псевдоавторизацией по токену"""
+        ASYNC_TOKEN = '8bytekey'
+        
+        token = request.headers.get('X-Async-Token')
+        if token != ASYNC_TOKEN:
+            return Response({'error': 'Неверный токен'}, 
+                          status=status.HTTP_401_UNAUTHORIZED)
+        
+        calc_request = self.get_object()
+        
+        if calc_request.status != 'formed':
+            return Response({'error': 'Можно обновлять только сформированные заявки'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        comet_id = request.data.get('comet_id')
+        if not comet_id:
+            return Response({'error': 'comet_id is required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            req_comet = RequestComet.objects.get(request=calc_request, id=comet_id)
+        except RequestComet.DoesNotExist:
+            return Response({'error': 'Comet not found in request'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+        
+        result_status = request.data.get('status')
+        if result_status == 'completed':
+            distance_au = request.data.get('distance_au')
+            if distance_au is not None:
+                req_comet.distance_au = distance_au
+                req_comet.save()
+        elif result_status == 'rejected':
+            req_comet.distance_au = None
+            req_comet.save()
+        
+        all_calculated = calc_request.distance_comets.filter(distance_au__isnull=False).count()
+        total_comets = calc_request.distance_comets.count()
+        
+        if all_calculated == total_comets and total_comets > 0:
+            calc_request.status = 'completed'
+            calc_request.save()
+        elif result_status == 'rejected':
+            calc_request.status = 'rejected'
+            calc_request.save()
         
         serializer = DistanceSerializer(calc_request)
         return Response(serializer.data)
@@ -301,8 +358,9 @@ class RequestCometViewSet(viewsets.ViewSet):
             return Response({'error': 'Связь не найдена'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=False, methods=['put'], url_path='update')
-    def update_comet_in_request(self, request, request_id=None):
-        """Изменение количества/порядка/координат по comet_id без PK м-м"""
+    def update_comet_in_request(self, request, **kwargs):
+        """Изменение количества/порядка/координат по comet_id без PK м-м (deprecated)"""
+        request_id = kwargs.get('request_id')
         comet_id = request.data.get('comet_id')
         if not comet_id:
             return Response({'error': 'comet_id обязателен'}, status=status.HTTP_400_BAD_REQUEST)
@@ -312,7 +370,43 @@ class RequestCometViewSet(viewsets.ViewSet):
         except RequestComet.DoesNotExist:
             return Response({'error': 'Связь не найдена'}, status=status.HTTP_404_NOT_FOUND)
 
-        allowed_fields = {'quantity', 'sort_order', 'coords_x', 'coords_y', 'coords_z', 'is_main'}
+        allowed_fields = {'sort_order', 'coords_x', 'coords_y', 'coords_z'}
+        data = {k: v for k, v in request.data.items() if k in allowed_fields}
+
+        serializer = RequestCometSerializer(request_comet, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update_comet_by_id(self, request, **kwargs):
+        """Обновление м-м записи по request_id и comet_id"""
+        if hasattr(request, 'resolver_match') and request.resolver_match:
+            request_id = request.resolver_match.kwargs.get('request_id')
+            comet_id = request.resolver_match.kwargs.get('comet_id')
+        else:
+            request_id = kwargs.get('request_id')
+            comet_id = kwargs.get('comet_id')
+        
+        if not request_id or not comet_id:
+            return Response({'error': f'request_id и comet_id обязательны. Получено: request_id={request_id}, comet_id={comet_id}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            request_id = int(request_id)
+            comet_id = int(comet_id)
+        except (ValueError, TypeError):
+            return Response({'error': 'request_id и comet_id должны быть числами'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            request_comet = self._get_request_comet(request_id, comet_id)
+        except RequestComet.DoesNotExist:
+            all_request_comets = RequestComet.objects.filter(request_id=request_id).values_list('comet_id', flat=True)
+            return Response({
+                'error': f'Связь не найдена: request_id={request_id}, comet_id={comet_id}',
+                'available_comets': list(all_request_comets)
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        allowed_fields = {'sort_order', 'coords_x', 'coords_y', 'coords_z'}
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
         serializer = RequestCometSerializer(request_comet, data=data, partial=True)
@@ -324,7 +418,7 @@ class RequestCometViewSet(viewsets.ViewSet):
 
 class UserViewSet(viewsets.ViewSet):
     authentication_classes = [SessionAuthentication, BasicAuthentication, RedisSessionAuthentication]
-    model_class = CustomUser
+    model_class = User
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
@@ -340,27 +434,40 @@ class UserViewSet(viewsets.ViewSet):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            return Response({'id': user.id, 'email': user.email}, status=status.HTTP_201_CREATED)
+            user_email = user.email or user.username
+            return Response({'id': user.id, 'email': user_email}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def profile(self, request):
-        serializer = UserSerializer(request.user)
+        """
+        Возвращает профиль текущего пользователя.
+        Для анонимного пользователя явно отдаем 401 вместо попытки сериализовать AnonymousUser.
+        """
+        user = request.user
+        if not user or not user.is_authenticated:
+            return Response(
+                {'detail': 'Необходимо выполнить вход'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = UserSerializer(user)
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
     def logout(self, request):
-        # поместить текущий session_id в blacklist в Redis
         session_id = request.COOKIES.get('session_id')
         try:
             if session_id:
                 r = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
-                # отмечаем как отозванный с коротким TTL, чтобы не копить мусор
                 r.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
+                r.delete(session_id)
         except Exception:
             pass
         logout(request)
-        return Response({'message': 'Успешный выход'})
+        response = Response({'message': 'Успешный выход'})
+        response.delete_cookie('session_id')
+        return response
 
     @action(detail=False, methods=['put'])
     def update_profile(self, request):
@@ -380,8 +487,9 @@ class UserViewSet(viewsets.ViewSet):
 
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
+        username = serializer.validated_data.get('username', email)
 
-        user = authenticate(request, username=email, password=password)
+        user = authenticate(request, username=username, password=password)
         if user is None:
             return Response({'status': 'error', 'error': 'login failed'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -391,7 +499,8 @@ class UserViewSet(viewsets.ViewSet):
         except Exception:
             return Response({'status': 'error', 'error': 'redis unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        response = Response({'status': 'ok', 'user': {'email': user.email}})
+        user_email = user.email or user.username
+        response = Response({'status': 'ok', 'user': {'email': user_email, 'id': user.id, 'is_superuser': user.is_superuser}})
         response.set_cookie('session_id', random_key, httponly=True)
         return response
 
@@ -403,7 +512,10 @@ class UserViewSet(viewsets.ViewSet):
             if session_id:
                 r = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
                 r.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
+                r.delete(session_id)
         except Exception:
             pass
         logout(request)
-        return Response({'message': 'Успешный выход'})
+        response = Response({'message': 'Успешный выход'})
+        response.delete_cookie('session_id')
+        return response
