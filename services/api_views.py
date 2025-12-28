@@ -33,19 +33,9 @@ from .models import Comet, Distance, RequestComet
 from .serializers import CometSerializer, DistanceSerializer, RequestCometSerializer, UserSerializer, LoginSerializer
 
 
-def get_current_user():
-    """Singleton для получения зафиксированного пользователя-создателя"""
-    user, created = User.objects.get_or_create(
-        username='admin@comets.com',
-        defaults={
-            'email': 'admin@comets.com',
-            'is_superuser': True
-        }
-    )
-    if created:
-        user.set_password('admin123')
-        user.save()
-    return user
+def get_current_user(request):
+    """Получение текущего пользователя из запроса"""
+    return request.user
 
 
 def method_permission_classes(classes):
@@ -113,13 +103,13 @@ class CometViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='addToRequest', permission_classes=[IsAuthenticated])
     def add_to_request(self, request, pk=None):
         """Добавление услуги в заявку-черновик"""
-        if not request.user or not request.user.is_authenticated:
-            return Response({'error': 'Требуется авторизация'}, status=status.HTTP_401_UNAUTHORIZED)
+        # Используем текущего пользователя из запроса
+        current_user = get_current_user(request)
         
         comet = self.get_object()
         
         distance, created = Distance.objects.get_or_create(
-            astronomer=request.user,
+            astronomer=current_user,
             status='draft',
             defaults={}
         )
@@ -151,17 +141,45 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
         """Для списка применяем фильтры; для detail-операций возвращаем все заявки."""
         qs = Distance.objects.all()
         if getattr(self, 'action', None) == 'list':
+            print(f"[GET_QUERYSET] Action: list, User: {self.request.user.username} (ID: {self.request.user.id}, is_superuser: {self.request.user.is_superuser})")
+            
+            # Для обычных пользователей показываем только их заявки, для модераторов - все
+            if not self.request.user.is_superuser:
+                qs = qs.filter(astronomer=self.request.user)
+                print(f"[GET_QUERYSET] Filtered by astronomer: {self.request.user.id}")
+            
+            # Исключаем черновики и удаленные
             qs = qs.exclude(status__in=['deleted', 'draft'])
+            print(f"[GET_QUERYSET] After exclude draft/deleted, count: {qs.count()}")
+            
             status_filter = self.request.query_params.get('status', None)
             if status_filter:
                 qs = qs.filter(status=status_filter)
+                print(f"[GET_QUERYSET] Filtered by status: {status_filter}")
             date_from = self.request.query_params.get('date_from', None)
             date_to = self.request.query_params.get('date_to', None)
             if date_from:
                 qs = qs.filter(formed_at__gte=date_from)
+                print(f"[GET_QUERYSET] Filtered by date_from: {date_from}")
             if date_to:
                 qs = qs.filter(formed_at__lte=date_to)
+                print(f"[GET_QUERYSET] Filtered by date_to: {date_to}")
+            
+            # Логируем количество заявок и их детали
+            requests_list = list(qs.values('id', 'status', 'astronomer_id', 'astronomer__username', 'formed_at'))
+            print(f"[GET_QUERYSET] Found {len(requests_list)} requests after filters: {requests_list}")
+            
+            # Логируем все заявки в БД для данного пользователя (для отладки)
+            all_user_requests = list(Distance.objects.filter(astronomer=self.request.user).values('id', 'status', 'astronomer_id', 'formed_at'))
+            print(f"[GET_QUERYSET] All requests in DB for user {self.request.user.id}: {all_user_requests}")
         return qs
+
+    def list(self, request, *args, **kwargs):
+        """Переопределяем list для логирования ответа"""
+        response = super().list(request, *args, **kwargs)
+        print(f"[LIST] Response data type: {type(response.data)}, length: {len(response.data) if isinstance(response.data, list) else 'not a list'}")
+        print(f"[LIST] Response data: {response.data}")
+        return response
 
     def retrieve(self, request, pk=None):
         """Получение заявки по id без исключения draft/deleted (по методичке: GET одна запись)."""
@@ -172,9 +190,11 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def cart_info(self, request):
         """Получение информации о корзине (заявке-черновике)"""
+        # Используем текущего пользователя из запроса
+        current_user = get_current_user(request)
         try:
             draft_request = Distance.objects.get(
-                astronomer=request.user,
+                astronomer=current_user,
                 status='draft'
             )
             items_count = RequestComet.objects.filter(request=draft_request).count()
@@ -193,23 +213,34 @@ class TrajectoriesViewSet(viewsets.ModelViewSet):
     def form_request(self, request, pk=None):
         """Формирование заявки создателем"""
         calc_request = self.get_object()
+        print(f"[FORM_REQUEST] Starting form request for ID: {pk}, Current status: {calc_request.status}, Astronomer ID: {calc_request.astronomer.id}")
         
-        if calc_request.astronomer != request.user:
+        # Используем текущего пользователя из запроса
+        current_user = get_current_user(request)
+        print(f"[FORM_REQUEST] Current user from get_current_user(): {current_user.username} (ID: {current_user.id})")
+        print(f"[FORM_REQUEST] Request user: {request.user.username} (ID: {request.user.id})")
+        
+        if calc_request.astronomer != current_user:
+            print(f"[FORM_REQUEST] Permission denied: astronomer {calc_request.astronomer.id} != current_user {current_user.id}")
             return Response({'error': 'Нет прав для формирования этой заявки'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
         if calc_request.status != 'draft':
+            print(f"[FORM_REQUEST] Invalid status: {calc_request.status}, expected 'draft'")
             return Response({'error': 'Можно формировать только черновики'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
         # Проверка обязательных полей
         if not calc_request.telescopes_list:
+            print(f"[FORM_REQUEST] telescopes_list is empty")
             return Response({'error': 'Не заполнены обязательные поля'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
         calc_request.status = 'formed'
         calc_request.formed_at = timezone.now()
         calc_request.save()
+        print(f"[FORM_REQUEST] Request {pk} successfully formed. New status: {calc_request.status}, formed_at: {calc_request.formed_at}, Astronomer ID: {calc_request.astronomer.id}")
+        print(f"[FORM_REQUEST] Request astronomer username: {calc_request.astronomer.username}")
         
         serializer = DistanceSerializer(calc_request)
         return Response(serializer.data)
@@ -417,7 +448,7 @@ class RequestCometViewSet(viewsets.ViewSet):
 
 
 class UserViewSet(viewsets.ViewSet):
-    authentication_classes = [SessionAuthentication, BasicAuthentication, RedisSessionAuthentication]
+    authentication_classes = [RedisSessionAuthentication, SessionAuthentication, BasicAuthentication]
     model_class = User
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -459,9 +490,9 @@ class UserViewSet(viewsets.ViewSet):
         session_id = request.COOKIES.get('session_id')
         try:
             if session_id:
-                r = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
-                r.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
-                r.delete(session_id)
+                # Используем глобальный session_storage вместо создания нового экземпляра
+                session_storage.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
+                session_storage.delete(session_id)
         except Exception:
             pass
         logout(request)
@@ -487,15 +518,21 @@ class UserViewSet(viewsets.ViewSet):
 
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
-        username = serializer.validated_data.get('username', email)
 
-        user = authenticate(request, username=username, password=password)
-        if user is None:
+        # Ищем пользователя по email
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'status': 'error', 'error': 'login failed'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Проверяем пароль
+        if not user.check_password(password):
             return Response({'status': 'error', 'error': 'login failed'}, status=status.HTTP_401_UNAUTHORIZED)
 
         random_key = str(uuid.uuid4())
         try:
-            session_storage.set(random_key, email)
+            # Устанавливаем TTL 24 часа для сессии
+            session_storage.setex(random_key, 3600 * 24, email)
         except Exception:
             return Response({'status': 'error', 'error': 'redis unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
@@ -510,9 +547,9 @@ class UserViewSet(viewsets.ViewSet):
         session_id = request.COOKIES.get('session_id')
         try:
             if session_id:
-                r = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
-                r.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
-                r.delete(session_id)
+                # Используем глобальный session_storage вместо создания нового экземпляра
+                session_storage.setex(f"bl:{session_id}", 60 * 60 * 24, '1')
+                session_storage.delete(session_id)
         except Exception:
             pass
         logout(request)
