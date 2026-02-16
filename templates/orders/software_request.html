@@ -1,0 +1,73 @@
+{% extends 'base/comet_layout.html' %}
+
+{% block content %}
+<section class="order">
+    <h1>Заявка #{{ request_id }}</h1>
+    <div class="summary">
+        <span>Всего позиций: <span class="badge badge-primary">{{ cart_count }}</span></span>
+    </div>
+
+    <div class="request-form" id="calc-form">
+
+        <div class="summary">
+            <div class="form-group">
+                <label>Астроном:</label>
+                <select name="astronomer">
+                    {% for a in astronomers_list %}
+                    <option value="{{ a }}">{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Телескоп:</label>
+                <select name="telescope">
+                    {% for t in telescopes_list %}
+                    <option value="{{ t }}">{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        {% for item in items %}
+        <div class="order-item">
+            <img src="{{ item.comet.get_minio_url }}" alt="{{ item.comet.name }}">
+            <div class="order-item-row">
+                <span class="name">{{ item.comet.name }}</span>
+                <div class="coords-form">
+                    <label>Координаты:</label>
+                    <div class="coords-inputs">
+                        <input type="number" name="coord_x_{{ item.comet.id }}" value="{{ item.coords.x }}" step="0.001"
+                            placeholder="X">
+                        <input type="number" name="coord_y_{{ item.comet.id }}" value="{{ item.coords.y }}" step="0.001"
+                            placeholder="Y">
+                        <input type="number" name="coord_z_{{ item.comet.id }}" value="{{ item.coords.z }}" step="0.001"
+                            placeholder="Z">
+                    </div>
+                </div>
+                <span class="meta">
+                    Расстояние от Солнца: <strong>{{ item.distance_au|floatformat:3 }} а.е.</strong>
+                </span>
+                <span class="meta">
+                    порядок {{ item.sort_order }}
+                </span>
+            </div>
+        </div>
+        {% empty %}
+        <p class="no-items">Заявка пуста</p>
+        {% endfor %}
+
+    </div>
+
+    <div class="order-actions" style="display: flex; justify-content: flex-start; align-items: center; gap: 12px;">
+        {% if calc_request.status == 'draft' %}
+        <form method="post" action="{% url 'services:delete_request' request_id %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-red" onclick="return confirm('Удалить заявку?')">
+                Удалить заявку
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+</section>
+{% endblock %}
