@@ -1,0 +1,25 @@
+{{ define "base" }}
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ .Title }}</title>
+    <link rel="stylesheet" href="{{ .PrimaryCSS }}">
+</head>
+<body>
+    <header class="app-header">
+        <a class="home-link" href="/services?orderId={{ .OrderID }}">Домой</a>
+    </header>
+    <main class="container">
+        {{ template "content" . }}
+    </main>
+    <footer class="app-footer">
+        <p>Тема: Расстояние кометы от Солнца по её координатам</p>
+    </footer>
+</body>
+</html>
+{{ end }}
+
+
+

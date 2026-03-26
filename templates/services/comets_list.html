@@ -1,0 +1,33 @@
+{% extends 'base/comet_layout.html' %}
+
+{% block content %}
+<section class="toolbar" data-order-id="{{ order_id }}" data-cart-count="{{ cart_count }}">
+    <form method="get" action="{% url 'services:list' %}" class="search-form">
+        <input type="hidden" name="order_id" value="{{ order_id }}">
+        <input type="text" name="q" placeholder="Поиск по наименованию" value="{{ query }}">
+        <button type="submit" class="btn btn-red">Найти</button>
+    </form>
+
+    <a class="cart-card" href="{% url 'services:order_detail' order_id %}">
+        <div class="cart-title">Заявка #{{ order_id }}</div>
+        <div class="cart-count">В корзине: <span class="badge badge-primary">{{ cart_count }}</span></div>
+    </a>
+</section>
+
+<section class="grid">
+    {% for airplane in services %}
+    <a class="card" href="{% url 'services:detail' airplane.id %}?order_id={{ order_id }}"
+        data-service-id="{{ airplane.id }}" data-minio-url="{{ airplane.image_url }}">
+        <img src="{{ airplane.image_url }}" alt="{{ airplane.name }}">
+        <div class="card-body">
+            <h3 class="card-title">{{ airplane.name }}</h3>
+            <div class="card-meta">
+                <span class="price">{{ airplane.price }} ₽</span>
+            </div>
+        </div>
+    </a>
+    {% empty %}
+    <p class="no-results">Данных нет</p>
+    {% endfor %}
+</section>
+{% endblock %}
